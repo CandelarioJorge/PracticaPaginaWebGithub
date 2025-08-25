@@ -20,6 +20,8 @@
   </style>
 </head>
 <body>
+
+    <h1 id="elTitulo">aqui</h1>
   <div class="panel">
     <h1>Rastreo en mapa</h1>
     <button id="btn-start">Iniciar rastreo</button>
@@ -38,6 +40,7 @@
   ></script>
 
   <script>
+    
     // ---- Config básica del mapa ----
     const map = L.map('map', { zoomControl: true });
     // Capa base OSM (gratuita, incluye atribución)
@@ -51,6 +54,7 @@
     const path = L.polyline([], { weight: 4 }).addTo(map);
 
     // Estado
+    
     let watchId = null;
     const coordsHistory = []; // {lat, lng, ts}
 
@@ -102,6 +106,7 @@
           const { latitude: lat, longitude: lng, accuracy } = pos.coords;
           setStatus(`OK (±${Math.round(accuracy)} m)`);
           addPoint(lat, lng);
+          console.log(lat+ ", " + lng);
         },
         (err) => {
           const msg = ({
@@ -134,6 +139,8 @@
 
     $start.addEventListener('click', startWatch);
     $stop.addEventListener('click', stopWatch);
+
+    
   </script>
 </body>
 </html>
