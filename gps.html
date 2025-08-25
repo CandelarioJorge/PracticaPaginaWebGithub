@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mapa con ubicaciones (Leaflet + Geolocation)</title>
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 80vh; }
+    .panel { padding: .75rem 1rem; font-family: system-ui, sans-serif; }
+    button { padding: .5rem .9rem; }
+    small { color: #666; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Rastreo en mapa</h1>
+    <button id="btn-start">Iniciar rastreo</button>
+    <button id="btn-stop" disabled>Detener</button>
+    <span id="status"></span><br />
+    <small>Requiere HTTPS o localhost. Concede permisos de ubicación.</small>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // ---- Config básica del mapa ----
+    const map = L.map('map', { zoomControl: true });
+    // Capa base OSM (gratuita, incluye atribución)
+    const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Grupo para markers y polyline
+    const markers = L.featureGroup().addTo(map);
+    const path = L.polyline([], { weight: 4 }).addTo(map);
+
+    // Estado
+    let watchId = null;
+    const coordsHistory = []; // {lat, lng, ts}
+
+    const $status = document.getElementById('status');
+    const $start = document.getElementById('btn-start');
+    const $stop  = document.getElementById('btn-stop');
+
+    // Centrado inicial (si no hay GPS aún)
+    map.setView([19.4326, -99.1332], 12); // CDMX por defecto
+
+    function setStatus(msg) { $status.textContent = ' ' + msg; }
+
+    function addPoint(lat, lng) {
+      const ts = new Date().toISOString();
+      coordsHistory.push({ lat, lng, ts });
+
+      // Marcador con popup
+      const m = L.marker([lat, lng]).bindPopup(
+        `<b>Punto ${coordsHistory.length}</b><br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}<br>${ts}`
+      );
+      markers.addLayer(m);
+
+      // Actualizamos la ruta
+      path.addLatLng([lat, lng]);
+
+      // Ajustamos la vista para incluir todo
+      const all = L.featureGroup([markers, path]);
+      map.fitBounds(all.getBounds().pad(0.2));
+
+      // (Opcional) Enviar al servidor
+      /*
+      fetch('/api/locations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat, lng, timestamp: ts })
+      }).catch(console.error);
+      */
+    }
+
+    function startWatch() {
+      if (!('geolocation' in navigator)) {
+        setStatus('Este navegador no soporta geolocalización.');
+        return;
+      }
+      if (watchId !== null) return; // ya activo
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+          setStatus(`OK (±${Math.round(accuracy)} m)`);
+          addPoint(lat, lng);
+        },
+        (err) => {
+          const msg = ({
+            1: 'Permiso denegado.',
+            2: 'Posición no disponible.',
+            3: 'Tiempo de espera excedido.'
+          })[err.code] || 'Error desconocido.';
+          setStatus(msg);
+        },
+        {
+          enableHighAccuracy: true, // mejor precisión (más consumo)
+          timeout: 15000,
+          maximumAge: 0
+        }
+      );
+
+      $start.disabled = true;
+      $stop.disabled = false;
+    }
+
+    function stopWatch() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        setStatus('Rastreo detenido.');
+      }
+      $start.disabled = false;
+      $stop.disabled = true;
+    }
+
+    $start.addEventListener('click', startWatch);
+    $stop.addEventListener('click', stopWatch);
+  </script>
+</body>
+</html>
